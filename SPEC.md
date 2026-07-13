@@ -150,18 +150,48 @@ Multiple hunters are not inherently a multiplayer idea. They could appear in
 solo, social, or alternate modes. The question is whether they create readable
 pressure or make the maze feel unfair.
 
+### Room-To-Room Gate Loop
+
+The room-to-room gate idea may be a core loop, not just a roguelike expansion.
+Each room is a short local maze escape. Reaching a border door/gate transitions
+to the next room, and the player seals the gate behind them. The monster is
+trapped in the previous room, and the countdown/head start has an in-world
+cause: it is the time the monster needs to break through the sealed gate and
+enter the new room.
+
+Arcade shape:
+
+- each room is a short maze escape
+- reaching a border door/gate clears or exits the room
+- the player seals the gate behind them
+- the monster is trapped in the previous room
+- the countdown/head start is the monster breaking through the sealed gate
+- the next room starts with a fresh escape problem
+
+This could support a simple non-roguelike structure: survive a fixed number of
+rooms, reach a final exit, or score by rooms cleared.
+
 ### Roguelike Expansion
 
-A larger roguelike version is worth tracking, but it is not the first priority.
+A larger roguelike version could build on the room-to-room gate loop, but it is
+not the first priority.
 
 Possible shape:
 
+- Binding of Isaac-like room traversal layered over the maze: each chamber is a
+  local maze problem, and the run advances by crossing border doors or gates
 - gather resources during the head start or while fleeing
 - clear chambers or sub-objectives inside the labyrinth
 - earn upgrades that change movement, memory, detection, gates, traps, or escape
   options
 - unlock new maze features, hunters, tools, or starting conditions across runs
 - decide whether to escape early or keep pushing deeper for more resources
+- reveal a metamap/minimap of the larger labyrinth as rooms are discovered, so
+  players make route choices across the run rather than only inside one maze
+
+This points toward an endless or long-form run structure. Each room creates a
+fresh local escape problem, while the larger metamap, room rewards, powerups,
+and persistent unlocks provide progression between rooms and across attempts.
 
 This could give the idea longer-term progression and more systemic texture. The
 risk is that it buries the clean arcade premise under too many economies before
