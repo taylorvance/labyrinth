@@ -223,6 +223,26 @@ first design proof.
 - Do gates/traps create clever escape moments or distract from escape?
 - Does backtracking feel like a useful pressure or a chore?
 
+## Offline Map Diagnostics
+
+A small offline analyzer may be useful if tuning starts to feel blind. It should
+not become a substitute for playtesting or a "fun score." The goal is only to
+flag map and tuning combinations that are obviously unlikely to produce a good
+chase.
+
+Possible outputs:
+
+- shortest path length from start to exit
+- hunter distance to the player start and exit
+- fork, junction, dead-end, and corridor-length counts
+- earliest likely detection point on a simple escape route
+- rough pressure estimates from current speed and head-start settings
+- warnings for maps that look too short, too linear, instantly detected, or
+  mathematically hopeless
+
+Keep this lightweight and offline. Avoid adding player-facing debug UI or a
+large simulation harness unless the prototype clearly needs it.
+
 ## Failure Modes
 
 - Overbuilding stealth before the arcade maze works.

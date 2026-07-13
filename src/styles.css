@@ -142,6 +142,7 @@ h1 {
 }
 
 .board {
+  position: relative;
   width: min(100%, calc((100vh - 210px) * var(--cols) / var(--rows)));
   max-width: 980px;
   aspect-ratio: var(--cols) / var(--rows);
@@ -193,11 +194,60 @@ h1 {
 }
 
 .piece {
-  position: absolute;
   width: 82%;
   height: 82%;
   overflow: visible;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.42));
+}
+
+.cell .piece {
+  position: absolute;
+}
+
+.actor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: calc(100% / var(--cols));
+  height: calc(100% / var(--rows));
+  display: grid;
+  place-items: center;
+  transform: translate(
+    calc(var(--actor-col) * 100%),
+    calc(var(--actor-row) * 100%)
+  );
+  transition: transform var(--actor-step-ms) linear;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.actor-hunter {
+  z-index: 3;
+}
+
+.actor-release {
+  z-index: 4;
+  pointer-events: none;
+}
+
+.release-pie {
+  width: 168%;
+  height: 168%;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(23, 22, 21, 0.6);
+  border-radius: 50%;
+  color: #171615;
+  background:
+    radial-gradient(circle, rgba(246, 240, 223, 0.96) 0 43%, transparent 44%),
+    conic-gradient(
+      #e7bd5d calc(var(--release-progress) * 1turn),
+      rgba(23, 22, 21, 0.2) 0
+    );
+  box-shadow:
+    0 0 0 2px rgba(246, 240, 223, 0.72),
+    0 8px 18px rgba(0, 0, 0, 0.38);
 }
 
 .player circle {

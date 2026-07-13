@@ -16,6 +16,29 @@ export type Maze = {
 
 export type MapMode = "generated" | "fixed";
 
+export type HunterMode = "chasing" | "investigating" | "searching" | "patrolling";
+
+export type HunterBrain = {
+  mode: HunterMode;
+  lastKnownPlayer: Point | null;
+  target: Point | null;
+  searchTargetsRemaining: number;
+  patrolIndex: number;
+};
+
+export type HunterTuning = {
+  detectionRadius: number;
+  lineOfSight: boolean;
+  searchRadius: number;
+  searchTargets: number;
+};
+
+export type HunterTurn = {
+  hunter: Point;
+  brain: HunterBrain;
+  detected: boolean;
+};
+
 const FIXED_MAP = [
   "###################",
   "#S#.....#.........#",
@@ -60,6 +83,102 @@ export function pointsEqual(a: Point, b: Point): boolean {
   return a.row === b.row && a.col === b.col;
 }
 
+export function createHunterBrain(): HunterBrain {
+  return {
+    mode: "patrolling",
+    lastKnownPlayer: null,
+    target: null,
+    searchTargetsRemaining: 0,
+    patrolIndex: 0,
+  };
+}
+
+export function nextHunterTurn(
+  hunter: Point,
+  player: Point,
+  maze: Maze,
+  brain: HunterBrain,
+  tuning: HunterTuning,
+): HunterTurn {
+  if (canHunterDetectPlayer(hunter, player, maze, tuning)) {
+    return {
+      hunter: nextHunterStep(hunter, player, maze),
+      brain: {
+        ...brain,
+        mode: "chasing",
+        lastKnownPlayer: clonePoint(player),
+        target: clonePoint(player),
+        searchTargetsRemaining: tuning.searchTargets,
+      },
+      detected: true,
+    };
+  }
+
+  if (brain.lastKnownPlayer && !pointsEqual(hunter, brain.lastKnownPlayer)) {
+    return {
+      hunter: nextHunterStep(hunter, brain.lastKnownPlayer, maze),
+      brain: {
+        ...brain,
+        mode: "investigating",
+        target: clonePoint(brain.lastKnownPlayer),
+      },
+      detected: false,
+    };
+  }
+
+  if (brain.lastKnownPlayer && brain.searchTargetsRemaining > 0) {
+    const finishedSearchTarget =
+      brain.mode === "searching" && brain.target && pointsEqual(hunter, brain.target);
+    const searchTargetsRemaining = finishedSearchTarget
+      ? brain.searchTargetsRemaining - 1
+      : brain.searchTargetsRemaining;
+
+    if (searchTargetsRemaining > 0) {
+      const target =
+        brain.mode === "searching" && brain.target && !finishedSearchTarget
+          ? brain.target
+          : chooseSearchTarget(
+              hunter,
+              brain.lastKnownPlayer,
+              maze,
+              tuning.searchRadius,
+              searchTargetsRemaining,
+            );
+
+      return {
+        hunter: target ? nextHunterStep(hunter, target, maze) : hunter,
+        brain: {
+          ...brain,
+          mode: "searching",
+          target: target ? clonePoint(target) : null,
+          searchTargetsRemaining,
+        },
+        detected: false,
+      };
+    }
+  }
+
+  const reachedPatrolTarget =
+    brain.mode === "patrolling" && brain.target && pointsEqual(hunter, brain.target);
+  const patrolIndex = reachedPatrolTarget ? brain.patrolIndex + 1 : brain.patrolIndex;
+  const target =
+    brain.mode === "patrolling" && brain.target && !reachedPatrolTarget
+      ? brain.target
+      : choosePatrolTarget(maze, patrolIndex);
+
+  return {
+    hunter: nextHunterStep(hunter, target, maze),
+    brain: {
+      ...brain,
+      mode: "patrolling",
+      target: clonePoint(target),
+      searchTargetsRemaining: 0,
+      patrolIndex,
+    },
+    detected: false,
+  };
+}
+
 export function nextHunterStep(hunter: Point, target: Point, maze: Maze): Point {
   if (pointsEqual(hunter, target)) {
     return hunter;
@@ -96,6 +215,142 @@ export function nextHunterStep(hunter: Point, target: Point, maze: Maze): Point 
 
 export function formatCountdown(seconds: number): string {
   return Math.max(0, seconds).toFixed(1);
+}
+
+function canHunterDetectPlayer(
+  hunter: Point,
+  player: Point,
+  maze: Maze,
+  tuning: HunterTuning,
+): boolean {
+  return (
+    pointsEqual(hunter, player) ||
+    (tuning.lineOfSight && hasLineOfSight(hunter, player, maze)) ||
+    pathDistanceWithin(hunter, player, maze, tuning.detectionRadius)
+  );
+}
+
+function hasLineOfSight(a: Point, b: Point, maze: Maze): boolean {
+  if (a.row === b.row) {
+    const start = Math.min(a.col, b.col);
+    const end = Math.max(a.col, b.col);
+
+    for (let col = start; col <= end; col += 1) {
+      if (!canEnter({ row: a.row, col }, maze)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  if (a.col === b.col) {
+    const start = Math.min(a.row, b.row);
+    const end = Math.max(a.row, b.row);
+
+    for (let row = start; row <= end; row += 1) {
+      if (!canEnter({ row, col: a.col }, maze)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function pathDistanceWithin(
+  start: Point,
+  target: Point,
+  maze: Maze,
+  maxDistance: number,
+): boolean {
+  const distances = reachableWithin(start, maze, maxDistance);
+  return distances.some(({ point }) => pointsEqual(point, target));
+}
+
+function chooseSearchTarget(
+  hunter: Point,
+  origin: Point,
+  maze: Maze,
+  radius: number,
+  searchTargetsRemaining: number,
+): Point | null {
+  const reachable = reachableWithin(origin, maze, radius).filter(
+    ({ point }) => !pointsEqual(point, hunter),
+  );
+  const decisionPoints = reachable.filter(({ point }) => countOpenNeighbors(point, maze) !== 2);
+  const candidates = decisionPoints.length > 0 ? decisionPoints : reachable;
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const sorted = [...candidates].sort((a, b) => {
+    const distanceDifference = b.distance - a.distance;
+
+    if (distanceDifference !== 0) {
+      return distanceDifference;
+    }
+
+    const hunterDistanceDifference = manhattan(b.point, hunter) - manhattan(a.point, hunter);
+
+    if (hunterDistanceDifference !== 0) {
+      return hunterDistanceDifference;
+    }
+
+    return a.point.row - b.point.row || a.point.col - b.point.col;
+  });
+
+  return sorted[searchTargetsRemaining % sorted.length].point;
+}
+
+function choosePatrolTarget(maze: Maze, patrolIndex: number): Point {
+  const targets = [maze.playerStart, maze.exit, maze.hunterStart];
+  return targets[patrolIndex % targets.length];
+}
+
+function reachableWithin(
+  start: Point,
+  maze: Maze,
+  maxDistance: number,
+): Array<{ point: Point; distance: number }> {
+  const queue: Point[] = [start];
+  const distances = new Map<string, number>([[pointKey(start), 0]]);
+  const reachable: Array<{ point: Point; distance: number }> = [];
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    const distance = distances.get(pointKey(current)) ?? 0;
+    reachable.push({ point: current, distance });
+
+    if (distance >= maxDistance) {
+      continue;
+    }
+
+    for (const direction of DIRECTIONS) {
+      const neighbor = getNeighbor(current, direction);
+      const key = pointKey(neighbor);
+
+      if (!canEnter(neighbor, maze) || distances.has(key)) {
+        continue;
+      }
+
+      distances.set(key, distance + 1);
+      queue.push(neighbor);
+    }
+  }
+
+  return reachable;
+}
+
+function countOpenNeighbors(point: Point, maze: Maze): number {
+  return DIRECTIONS.filter((direction) => canEnter(getNeighbor(point, direction), maze)).length;
+}
+
+function clonePoint(point: Point): Point {
+  return { row: point.row, col: point.col };
 }
 
 function createGeneratedMaze(seed: number): Maze {

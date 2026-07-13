@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   type Direction,
+  type HunterBrain,
   type MapMode,
+  type Maze,
   type Point,
+  createHunterBrain,
   createMaze,
-  formatCountdown,
   movePoint,
-  nextHunterStep,
+  nextHunterTurn,
   pointsEqual,
 } from "./game";
+import { TUNING } from "./tuning";
 
 type GameStatus = "running" | "won" | "lost";
-
-const HEAD_START_SECONDS = 6;
-const PLAYER_STEP_MS = 160;
-const HUNTER_STEP_MS = 115;
 
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: "up",
@@ -34,8 +33,10 @@ export default function App() {
   const [player, setPlayer] = useState<Point>(maze.playerStart);
   const [hunter, setHunter] = useState<Point>(maze.hunterStart);
   const [status, setStatus] = useState<GameStatus>("running");
-  const [remainingHeadStart, setRemainingHeadStart] = useState(HEAD_START_SECONDS);
-  const heldDirections = useRef<Direction[]>([]);
+  const [remainingHeadStart, setRemainingHeadStart] = useState(TUNING.headStartSeconds);
+  const currentDirection = useRef<Direction | null>(null);
+  const queuedDirection = useRef<Direction | null>(null);
+  const hunterBrain = useRef<HunterBrain>(createHunterBrain());
   const lastPlayerStep = useRef(0);
   const lastHunterStep = useRef(0);
   const lastFrame = useRef(0);
@@ -64,8 +65,10 @@ export default function App() {
     setPlayer(maze.playerStart);
     setHunter(maze.hunterStart);
     setStatus("running");
-    setRemainingHeadStart(HEAD_START_SECONDS);
-    heldDirections.current = [];
+    setRemainingHeadStart(TUNING.headStartSeconds);
+    currentDirection.current = null;
+    queuedDirection.current = null;
+    hunterBrain.current = createHunterBrain();
     lastPlayerStep.current = 0;
     lastHunterStep.current = 0;
     lastFrame.current = 0;
@@ -75,12 +78,8 @@ export default function App() {
     resetGame();
   }, [resetGame]);
 
-  const setDirection = useCallback((direction: Direction, isHeld: boolean) => {
-    heldDirections.current = heldDirections.current.filter((item) => item !== direction);
-
-    if (isHeld) {
-      heldDirections.current.unshift(direction);
-    }
+  const queueDirection = useCallback((direction: Direction) => {
+    queuedDirection.current = direction;
   }, []);
 
   useEffect(() => {
@@ -92,28 +91,15 @@ export default function App() {
       }
 
       event.preventDefault();
-      setDirection(direction, true);
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      const direction = KEY_DIRECTIONS[event.code];
-
-      if (!direction) {
-        return;
-      }
-
-      event.preventDefault();
-      setDirection(direction, false);
+      queueDirection(direction);
     };
 
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
     };
-  }, [setDirection]);
+  }, [queueDirection]);
 
   useEffect(() => {
     let animationId = 0;
@@ -131,12 +117,18 @@ export default function App() {
         setRemainingHeadStart((current) => Math.max(0, current - elapsed));
       }
 
-      if (timestamp - lastPlayerStep.current >= PLAYER_STEP_MS) {
-        const direction = heldDirections.current[0];
+      if (timestamp - lastPlayerStep.current >= TUNING.playerStepMs) {
+        const direction = pickPlayerDirection(
+          playerRef.current,
+          queuedDirection.current,
+          currentDirection.current,
+          maze,
+        );
 
         if (direction) {
           const nextPlayer = movePoint(playerRef.current, direction, maze);
           playerRef.current = nextPlayer;
+          currentDirection.current = direction;
           setPlayer(nextPlayer);
           lastPlayerStep.current = timestamp;
 
@@ -152,13 +144,25 @@ export default function App() {
             return;
           }
         }
+
+        if (!direction) {
+          currentDirection.current = null;
+        }
       }
 
       if (
         remainingHeadStartRef.current <= 0 &&
-        timestamp - lastHunterStep.current >= HUNTER_STEP_MS
+        timestamp - lastHunterStep.current >= TUNING.hunterStepMs
       ) {
-        const nextHunter = nextHunterStep(hunterRef.current, playerRef.current, maze);
+        const turn = nextHunterTurn(
+          hunterRef.current,
+          playerRef.current,
+          maze,
+          hunterBrain.current,
+          TUNING.hunter,
+        );
+        const nextHunter = turn.hunter;
+        hunterBrain.current = turn.brain;
         hunterRef.current = nextHunter;
         setHunter(nextHunter);
         lastHunterStep.current = timestamp;
@@ -192,6 +196,7 @@ export default function App() {
   };
 
   const hunterReleased = remainingHeadStart <= 0;
+  const releaseProgress = 1 - Math.max(0, remainingHeadStart / TUNING.headStartSeconds);
   const statusLabel =
     status === "won"
       ? "Escaped"
@@ -199,7 +204,7 @@ export default function App() {
         ? "Caught"
         : hunterReleased
           ? "Hunter active"
-          : `Release in ${formatCountdown(remainingHeadStart)}`;
+          : "Head start";
 
   return (
     <main className="shell">
@@ -250,8 +255,6 @@ export default function App() {
             {maze.cells.map((row, rowIndex) =>
               row.map((cell, colIndex) => {
                 const point = { row: rowIndex, col: colIndex };
-                const isPlayer = pointsEqual(player, point);
-                const isHunter = hunterReleased && pointsEqual(hunter, point);
                 const isHunterHome = !hunterReleased && pointsEqual(maze.hunterStart, point);
                 const isExit = pointsEqual(maze.exit, point);
                 const className = [
@@ -267,11 +270,38 @@ export default function App() {
                   <div className={className} key={`${rowIndex}-${colIndex}`}>
                     {isExit && <ExitIcon />}
                     {isHunterHome && <HunterIcon asleep />}
-                    {isHunter && <HunterIcon />}
-                    {isPlayer && <PlayerIcon />}
                   </div>
                 );
               }),
+            )}
+            {!hunterReleased && status === "running" && (
+              <div
+                className="actor actor-release"
+                style={{
+                  ...actorStyle(maze.hunterStart, 0),
+                  "--release-progress": releaseProgress,
+                } as CSSProperties}
+                aria-label="Hunter release timer"
+                aria-live="polite"
+              >
+                <div className="release-pie" />
+              </div>
+            )}
+            <div
+              className="actor actor-player"
+              style={actorStyle(player, TUNING.playerStepMs)}
+              aria-hidden="true"
+            >
+              <PlayerIcon />
+            </div>
+            {hunterReleased && (
+              <div
+                className="actor actor-hunter"
+                style={actorStyle(hunter, TUNING.hunterStepMs)}
+                aria-hidden="true"
+              >
+                <HunterIcon />
+              </div>
             )}
           </div>
         </div>
@@ -281,10 +311,7 @@ export default function App() {
             type="button"
             className="pad-up"
             aria-label="Move up"
-            onPointerDown={() => setDirection("up", true)}
-            onPointerUp={() => setDirection("up", false)}
-            onPointerCancel={() => setDirection("up", false)}
-            onPointerLeave={() => setDirection("up", false)}
+            onPointerDown={() => queueDirection("up")}
           >
             <ArrowIcon direction="up" />
           </button>
@@ -292,10 +319,7 @@ export default function App() {
             type="button"
             className="pad-left"
             aria-label="Move left"
-            onPointerDown={() => setDirection("left", true)}
-            onPointerUp={() => setDirection("left", false)}
-            onPointerCancel={() => setDirection("left", false)}
-            onPointerLeave={() => setDirection("left", false)}
+            onPointerDown={() => queueDirection("left")}
           >
             <ArrowIcon direction="left" />
           </button>
@@ -303,10 +327,7 @@ export default function App() {
             type="button"
             className="pad-right"
             aria-label="Move right"
-            onPointerDown={() => setDirection("right", true)}
-            onPointerUp={() => setDirection("right", false)}
-            onPointerCancel={() => setDirection("right", false)}
-            onPointerLeave={() => setDirection("right", false)}
+            onPointerDown={() => queueDirection("right")}
           >
             <ArrowIcon direction="right" />
           </button>
@@ -314,10 +335,7 @@ export default function App() {
             type="button"
             className="pad-down"
             aria-label="Move down"
-            onPointerDown={() => setDirection("down", true)}
-            onPointerUp={() => setDirection("down", false)}
-            onPointerCancel={() => setDirection("down", false)}
-            onPointerLeave={() => setDirection("down", false)}
+            onPointerDown={() => queueDirection("down")}
           >
             <ArrowIcon direction="down" />
           </button>
@@ -325,6 +343,35 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function pickPlayerDirection(
+  player: Point,
+  queued: Direction | null,
+  current: Direction | null,
+  maze: Maze,
+): Direction | null {
+  if (queued && canMove(player, queued, maze)) {
+    return queued;
+  }
+
+  if (current && canMove(player, current, maze)) {
+    return current;
+  }
+
+  return null;
+}
+
+function canMove(player: Point, direction: Direction, maze: Maze): boolean {
+  return !pointsEqual(player, movePoint(player, direction, maze));
+}
+
+function actorStyle(point: Point, stepMs: number): CSSProperties {
+  return {
+    "--actor-row": point.row,
+    "--actor-col": point.col,
+    "--actor-step-ms": `${stepMs}ms`,
+  } as CSSProperties;
 }
 
 function PlayerIcon() {
