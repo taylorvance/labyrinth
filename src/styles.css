@@ -105,7 +105,7 @@ svg {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(280px, 22vw, 300px);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px clamp(12px, 2vw, 22px);
 }
@@ -254,6 +254,69 @@ svg {
   background: #ffda4d;
   color: #05060d;
   transform: scale(0.95);
+}
+
+.app-footer {
+  grid-column: 2;
+  grid-row: 3;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-self: end;
+  gap: 8px;
+}
+
+.brand-badge,
+.source-badge {
+  min-width: 0;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(96, 232, 255, 0.28);
+  border-radius: 8px;
+  color: rgba(255, 244, 194, 0.86);
+  background: rgba(7, 17, 42, 0.72);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 244, 194, 0.04);
+}
+
+.brand-badge:hover,
+.source-badge:hover {
+  border-color: rgba(255, 218, 77, 0.72);
+  color: #fff4c2;
+  background: rgba(16, 34, 74, 0.9);
+}
+
+.brand-badge:focus-visible,
+.source-badge:focus-visible {
+  outline: 3px solid rgba(255, 218, 77, 0.82);
+  outline-offset: 2px;
+}
+
+.brand-badge-icon,
+.source-badge-icon,
+.brand-badge-icon svg,
+.source-badge-icon svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.brand-badge-label,
+.source-badge-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell {
@@ -605,7 +668,7 @@ svg {
 
   .game {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
     align-items: center;
     gap: 8px;
   }
@@ -642,8 +705,15 @@ svg {
     gap: 8px;
   }
 
+  .app-footer {
+    grid-column: 1;
+    grid-row: 4;
+    justify-self: center;
+    max-width: 100%;
+  }
+
   .board {
-    width: min(100%, calc((100dvh - 312px) * var(--cols) / var(--rows)));
+    width: min(100%, calc((100dvh - 360px) * var(--cols) / var(--rows)));
   }
 }
 
@@ -664,8 +734,20 @@ svg {
     height: 40px;
   }
 
+  .brand-badge,
+  .source-badge {
+    width: 43px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .brand-badge-label,
+  .source-badge-label {
+    display: none;
+  }
+
   .board {
-    width: min(100%, calc((100dvh - 292px) * var(--cols) / var(--rows)));
+    width: min(100%, calc((100dvh - 338px) * var(--cols) / var(--rows)));
   }
 }
 
@@ -692,6 +774,10 @@ svg {
     grid-row: 2;
     width: clamp(176px, 52vh, 208px);
     height: clamp(176px, 52vh, 208px);
+  }
+
+  .app-footer {
+    display: none;
   }
 
   .board-wrap {

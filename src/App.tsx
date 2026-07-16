@@ -8,6 +8,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  BrandBadge,
+  SourceBadge,
+  createProjectStorage,
+  createStringUnionCodec,
+  useHotkeys,
+  usePersistentState,
+} from "@taylorvance/tv-shared-web";
+import {
   type Direction,
   type GateAnchor,
   type HunterBrain,
@@ -27,21 +35,16 @@ import { TUNING } from "./tuning";
 
 type GameStatus = "running" | "advancing" | "lost";
 
-const KEY_DIRECTIONS: Record<string, Direction> = {
-  ArrowUp: "up",
-  KeyW: "up",
-  ArrowDown: "down",
-  KeyS: "down",
-  ArrowLeft: "left",
-  KeyA: "left",
-  ArrowRight: "right",
-  KeyD: "right",
-};
+const APP_STORAGE = createProjectStorage("labyrinth", { version: 1 });
+const MAP_MODE_CODEC = createStringUnionCodec(["generated", "fixed"]);
 
 const DIRECTIONS: Direction[] = ["up", "right", "down", "left"];
 
 export default function App() {
-  const [mode, setMode] = useState<MapMode>("generated");
+  const [mode, setMode] = usePersistentState<MapMode>(APP_STORAGE, "map-mode", {
+    codec: MAP_MODE_CODEC,
+    defaultValue: "generated",
+  });
   const [seed, setSeed] = useState(1);
   const [entranceAnchor, setEntranceAnchor] = useState<GateAnchor | null>(null);
   const mazeBuild = useMemo(
@@ -228,24 +231,16 @@ export default function App() {
     [maze, queueDirectionToCell],
   );
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const direction = KEY_DIRECTIONS[event.code];
-
-      if (!direction) {
-        return;
-      }
-
-      event.preventDefault();
-      queueDirection(direction);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [queueDirection]);
+  useHotkeys(
+    [
+      { keys: "up,w", callback: () => queueDirection("up") },
+      { keys: "down,s", callback: () => queueDirection("down") },
+      { keys: "left,a", callback: () => queueDirection("left") },
+      { keys: "right,d", callback: () => queueDirection("right") },
+    ],
+    { preventDefault: true },
+    [queueDirection],
+  );
 
   useEffect(() => {
     let animationId = 0;
@@ -583,6 +578,23 @@ export default function App() {
             <ArrowIcon direction="down" />
           </button>
         </div>
+
+        <footer className="app-footer" aria-label="Project links">
+          <SourceBadge
+            aria-label="Open Labyrinth source repository on GitHub"
+            className="source-badge"
+            href="https://github.com/taylorvance/labyrinth"
+            iconClassName="source-badge-icon"
+            labelClassName="source-badge-label"
+            unstyled
+          />
+          <BrandBadge
+            className="brand-badge"
+            iconClassName="brand-badge-icon"
+            labelClassName="brand-badge-label"
+            unstyled
+          />
+        </footer>
       </section>
     </main>
   );

@@ -1,0 +1,22 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    uses: taylorvance/tv-shared/.github/workflows/deploy-pages.yml@v1
+    with:
+      node-version: '22'
+      working-directory: .
+      lint-command: npm run lint
+      build-command: npm run build
+      artifact-path: dist
