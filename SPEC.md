@@ -69,6 +69,38 @@ The first follow-up toggle should probably be visibility:
 That A/B test answers whether the game needs unknown maze information before
 adding larger mechanics.
 
+## Current Arcade Key-Gate Experiment
+
+The first follow-up branch is testing a Pac-Man-adjacent arcade structure rather
+than a prep/discovery structure:
+
+- full maze visibility
+- endless room-to-room progression
+- one visible key
+- player starts just inside an entrance gate on one wall
+- hunter breaks through that entrance gate after the countdown
+- one visible locked exit gate on a different wall
+- collect the key, then reach the gate
+- reaching the exit gate smoothly advances to the next room instead of showing a
+  persistent win state
+- the next room entrance is on the opposite wall at the same row/column as the
+  previous room's exit gate
+- the broken entrance gate becomes an impassable blocked doorway
+- limited tap-to-path controls allow nearby hallway destination taps without
+  solving the full maze
+- loopier maze generation to support reversals and jukes
+- hunter sprints only with direct line of sight, accelerates on longer
+  straightaways, then continues to the first fork beyond the last seen position
+  before slowing into search
+- proximity and periodic scent clues create slower tracking targets rather than
+  fast omniscient pursuit
+- generated rooms are rejected when route length, head-start coverage, or
+  diagnostic hunter timing margin are outside the current playable bounds
+
+The purpose is to answer whether a simple objective loop gives the head start
+and the chase a clearer point without adding traps, stealth, fog, or a larger
+roguelike economy.
+
 ## Ideas To Preserve
 
 ### Sneak/Sprint
@@ -171,6 +203,19 @@ Arcade shape:
 This could support a simple non-roguelike structure: survive a fixed number of
 rooms, reach a final exit, or score by rooms cleared.
 
+Possible end-of-run payoff:
+
+- show the discovered labyrinth when the run ends
+- draw each visited room at its global room coordinate
+- show the route taken through connected gates
+- mark the final room and death/caught point
+- optionally include stats such as rooms cleared, keys collected, closest call,
+  and total run time
+
+This depends on a persistent global room map. Rooms need stable coordinates and
+stored layouts before an end-of-run map can be truthful; otherwise the summary
+would only be decorative.
+
 ### Roguelike Expansion
 
 A larger roguelike version could build on the room-to-room gate loop, but it is
@@ -232,7 +277,7 @@ chase.
 
 Possible outputs:
 
-- shortest path length from start to exit
+- shortest path length from start to key to exit
 - hunter distance to the player start and exit
 - fork, junction, dead-end, and corridor-length counts
 - earliest likely detection point on a simple escape route
@@ -240,8 +285,11 @@ Possible outputs:
 - warnings for maps that look too short, too linear, instantly detected, or
   mathematically hopeless
 
-Keep this lightweight and offline. Avoid adding player-facing debug UI or a
-large simulation harness unless the prototype clearly needs it.
+Keep this lightweight. The current prototype uses this as a generation filter:
+it rejects generated rooms whose objective route is too short/long, whose
+head-start step count is below the current floor, or whose diagnostic hunter
+arrival margin along the objective route is too low. Avoid adding player-facing
+debug UI or a large simulation harness unless the prototype clearly needs it.
 
 ## Failure Modes
 
