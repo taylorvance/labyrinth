@@ -114,7 +114,7 @@ svg {
   grid-column: 2;
   grid-row: 1;
   display: grid;
-  grid-template-columns: repeat(5, 48px);
+  grid-template-columns: repeat(3, 48px);
   justify-content: center;
   gap: 8px;
 }
@@ -157,17 +157,6 @@ svg {
   width: 27px;
   height: 27px;
   fill: currentColor;
-}
-
-.mode-button {
-  opacity: 0.58;
-}
-
-.mode-button.selected {
-  opacity: 1;
-  border-color: rgba(255, 218, 77, 0.9);
-  color: #05060d;
-  background: #ffda4d;
 }
 
 .board-wrap {

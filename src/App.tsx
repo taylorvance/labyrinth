@@ -10,17 +10,13 @@ import {
 import {
   BrandBadge,
   SourceBadge,
-  createProjectStorage,
-  createStringUnionCodec,
   useHotkeys,
-  usePersistentState,
 } from "@taylorvance/tv-shared-web";
 import {
   type Direction,
   type GateAnchor,
   type HunterBrain,
   type HunterMode,
-  type MapMode,
   type Maze,
   type Point,
   canPlayerEnter,
@@ -35,21 +31,14 @@ import { TUNING } from "./tuning";
 
 type GameStatus = "running" | "advancing" | "lost";
 
-const APP_STORAGE = createProjectStorage("labyrinth", { version: 1 });
-const MAP_MODE_CODEC = createStringUnionCodec(["generated", "fixed"]);
-
 const DIRECTIONS: Direction[] = ["up", "right", "down", "left"];
 
 export default function App() {
-  const [mode, setMode] = usePersistentState<MapMode>(APP_STORAGE, "map-mode", {
-    codec: MAP_MODE_CODEC,
-    defaultValue: "generated",
-  });
   const [seed, setSeed] = useState(1);
   const [entranceAnchor, setEntranceAnchor] = useState<GateAnchor | null>(null);
   const mazeBuild = useMemo(
-    () => createPlayableMaze(mode, seed, TUNING.playability, entranceAnchor),
-    [entranceAnchor, mode, seed],
+    () => createPlayableMaze("generated", seed, TUNING.playability, entranceAnchor),
+    [entranceAnchor, seed],
   );
   const maze = mazeBuild.maze;
   const [player, setPlayer] = useState<Point>(maze.playerStart);
@@ -372,20 +361,7 @@ export default function App() {
   const startNewGeneratedMaze = () => {
     setRoom(1);
     setEntranceAnchor(null);
-    setMode("generated");
     setSeed((current) => current + TUNING.playability.generatedAttempts);
-  };
-
-  const useFixedMap = () => {
-    setRoom(1);
-    setEntranceAnchor(null);
-    setMode("fixed");
-  };
-
-  const useGeneratedMap = () => {
-    setRoom(1);
-    setEntranceAnchor(null);
-    setMode("generated");
   };
 
   const hunterReleased = remainingHeadStart <= 0;
@@ -433,30 +409,10 @@ export default function App() {
             type="button"
             className="icon-button"
             onClick={startNewGeneratedMaze}
-            aria-label="New generated maze"
-            title="New generated maze"
+            aria-label="Reroll room"
+            title="Reroll room"
           >
             <NewMazeIcon />
-          </button>
-          <button
-            type="button"
-            className={`icon-button mode-button ${mode === "generated" ? "selected" : ""}`}
-            onClick={useGeneratedMap}
-            aria-label="Generated maze"
-            aria-pressed={mode === "generated"}
-            title="Generated maze"
-          >
-            <GeneratedMazeIcon />
-          </button>
-          <button
-            type="button"
-            className={`icon-button mode-button ${mode === "fixed" ? "selected" : ""}`}
-            onClick={useFixedMap}
-            aria-label="Fixed maze"
-            aria-pressed={mode === "fixed"}
-            title="Fixed maze"
-          >
-            <FixedMazeIcon />
           </button>
         </div>
 
@@ -924,23 +880,7 @@ function RestartIcon() {
 function NewMazeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="button-icon">
-      <path d="M4 4h6v6H4Zm10 0h6v6h-6ZM4 14h6v6H4Zm10 0h6v6h-6ZM6 6v2h2V6Zm10 0v2h2V6ZM6 16v2h2v-2Zm10 0v2h2v-2Z" />
-    </svg>
-  );
-}
-
-function GeneratedMazeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="button-icon">
-      <path d="M4 4h16v16H4Zm2 2v4h3v2H6v6h3v-3h2v3h7v-4h-4v-2h4V6h-5v3h-2V6Zm5 5h2v2h-2Z" />
-    </svg>
-  );
-}
-
-function FixedMazeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="button-icon">
-      <path d="M7 3h10v4h2v14H5V7h2Zm2 4h6V5H9Zm-2 2v10h10V9Zm3 2h4v2h-4Zm0 4h4v2h-4Z" />
+      <path d="M17.6 4.4 21.2 8l-3.6 3.6-1.45-1.45L17.25 9H14c-2.04 0-3.08.94-4.34 3.94C8.1 16.66 6.45 18 3 18v-2c2.2 0 3.2-.74 4.34-3.44C8.9 8.84 10.55 7 14 7h3.25l-1.1-1.15ZM3 6h2.25c1.7 0 2.96.42 3.96 1.32L7.86 8.83C7.24 8.27 6.45 8 5.25 8H3Zm14.6 6.4L21.2 16l-3.6 3.6-1.45-1.45L17.25 17H14c-1.7 0-2.96-.42-3.96-1.32l1.35-1.51c.62.56 1.41.83 2.61.83h3.25l-1.1-1.15Z" />
     </svg>
   );
 }
