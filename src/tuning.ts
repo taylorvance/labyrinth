@@ -1,7 +1,7 @@
 import type { HunterTuning, PlayabilityTuning } from "./game";
 
 const HEAD_START_SECONDS = 7;
-const PLAYER_STEP_MS = 150;
+const PLAYER_STEP_MS = 165;
 const HUNTER_TRACK_STEP_MS = 240;
 const HUNTER_SPRINT_STEP_MS = 125;
 const HUNTER_TURN_STEP_MS = 170;
@@ -9,18 +9,22 @@ const HUNTER_MAX_SPRINT_STEP_MS = 95;
 const HUNTER_STRAIGHT_ACCEL_START_STEPS = 4;
 const HUNTER_STRAIGHT_ACCEL_STEP_MS = 10;
 const HUNTER_DIAGNOSTIC_STEP_MS = 180;
+const TURN_BUFFER_MS = 900;
+const TURN_COYOTE_MS = 110;
 
 export const TUNING = {
   headStartSeconds: HEAD_START_SECONDS,
   roomTransitionMs: 280,
   playerStepMs: PLAYER_STEP_MS,
+  turnBufferMs: TURN_BUFFER_MS,
+  turnCoyoteMs: TURN_COYOTE_MS,
   hunterTrackStepMs: HUNTER_TRACK_STEP_MS,
   hunterSprintStepMs: HUNTER_SPRINT_STEP_MS,
   hunterTurnStepMs: HUNTER_TURN_STEP_MS,
   hunterMaxSprintStepMs: HUNTER_MAX_SPRINT_STEP_MS,
   hunterStraightAccelStartSteps: HUNTER_STRAIGHT_ACCEL_START_STEPS,
   hunterStraightAccelStepMs: HUNTER_STRAIGHT_ACCEL_STEP_MS,
-  tapPathMaxSteps: 9,
+  tapPathMaxSteps: 12,
   tapTargetRadius: 2,
   hunter: {
     detectionRadius: 2,

@@ -33,6 +33,13 @@ type GameStatus = "running" | "advancing" | "lost";
 
 const DIRECTIONS: Direction[] = ["up", "right", "down", "left"];
 
+type LateTurnWindow = {
+  corner: Point;
+  forward: Direction;
+  departedAt: number;
+  turns: Direction[];
+};
+
 export default function App() {
   const [seed, setSeed] = useState(1);
   const [entranceAnchor, setEntranceAnchor] = useState<GateAnchor | null>(null);
@@ -65,6 +72,9 @@ export default function App() {
   const statusRef = useRef(status);
   const remainingHeadStartRef = useRef(remainingHeadStart);
   const advanceTimeout = useRef<number | null>(null);
+  const queuedDirectionAt = useRef(0);
+  const activePadPointer = useRef<number | null>(null);
+  const lateTurnWindow = useRef<LateTurnWindow | null>(null);
   const [room, setRoom] = useState(1);
 
   useEffect(() => {
@@ -113,6 +123,8 @@ export default function App() {
     remainingHeadStartRef.current = TUNING.headStartSeconds;
     currentDirection.current = null;
     queuedDirection.current = null;
+    queuedDirectionAt.current = 0;
+    lateTurnWindow.current = null;
     hunterBrain.current = createHunterBrain();
     hunterDirection.current = null;
     hunterStraightSteps.current = 0;
@@ -149,6 +161,8 @@ export default function App() {
     setStatus("advancing");
     currentDirection.current = null;
     queuedDirection.current = null;
+    queuedDirectionAt.current = 0;
+    lateTurnWindow.current = null;
     plannedPathRef.current = [];
     setPlannedPath([]);
 
@@ -164,15 +178,69 @@ export default function App() {
     plannedPathRef.current = [];
     setPlannedPath([]);
     queuedDirection.current = direction;
+    queuedDirectionAt.current = performance.now();
   }, []);
 
   const queueDirectionFromPress = useCallback(
-    (direction: Direction) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    (direction: Direction) => (event: ReactPointerEvent<HTMLElement>) => {
       event.preventDefault();
       queueDirection(direction);
     },
     [queueDirection],
   );
+
+  const queueDirectionFromPadPosition = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left - rect.width / 2;
+      const y = event.clientY - rect.top - rect.height / 2;
+      const deadZone = Math.min(rect.width, rect.height) * 0.12;
+
+      if (Math.hypot(x, y) < deadZone) {
+        return;
+      }
+
+      const direction =
+        Math.abs(x) > Math.abs(y) ? (x > 0 ? "right" : "left") : y > 0 ? "down" : "up";
+
+      queueDirection(direction);
+    },
+    [queueDirection],
+  );
+
+  const handlePadPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      activePadPointer.current = event.pointerId;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      queueDirectionFromPadPosition(event);
+    },
+    [queueDirectionFromPadPosition],
+  );
+
+  const handlePadPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (activePadPointer.current !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      queueDirectionFromPadPosition(event);
+    },
+    [queueDirectionFromPadPosition],
+  );
+
+  const handlePadPointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePadPointer.current !== event.pointerId) {
+      return;
+    }
+
+    activePadPointer.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
 
   const queueDirectionToCell = useCallback(
     (target: Point) => {
@@ -190,7 +258,9 @@ export default function App() {
       }
 
       queuedDirection.current = null;
+      queuedDirectionAt.current = 0;
       currentDirection.current = null;
+      lateTurnWindow.current = null;
       plannedPathRef.current = path;
       setPlannedPath(path);
     },
@@ -247,17 +317,70 @@ export default function App() {
         setRemainingHeadStart((current) => Math.max(0, current - elapsed));
       }
 
+      const lateTurnTarget = pickLateTurnTarget(
+        playerRef.current,
+        queuedDirection.current,
+        lateTurnWindow.current,
+        timestamp,
+        maze,
+        hasKeyRef.current,
+      );
+
+      if (lateTurnTarget && queuedDirection.current) {
+        const direction = queuedDirection.current;
+        playerRef.current = lateTurnTarget;
+        currentDirection.current = direction;
+        queuedDirection.current = null;
+        queuedDirectionAt.current = 0;
+        lateTurnWindow.current = null;
+        plannedPathRef.current = [];
+        setPlannedPath([]);
+        setPlayer(lateTurnTarget);
+        lastPlayerStep.current = timestamp;
+
+        const collectedKey = !hasKeyRef.current && pointsEqual(lateTurnTarget, maze.key);
+
+        if (collectedKey) {
+          hasKeyRef.current = true;
+          setHasKey(true);
+        }
+
+        if (hasKeyRef.current && pointsEqual(lateTurnTarget, maze.exit)) {
+          advanceRoom();
+          animationId = requestAnimationFrame(frame);
+          return;
+        }
+
+        if (remainingHeadStartRef.current <= 0 && pointsEqual(lateTurnTarget, hunterRef.current)) {
+          setStatus("lost");
+          animationId = requestAnimationFrame(frame);
+          return;
+        }
+      }
+
       if (timestamp - lastPlayerStep.current >= TUNING.playerStepMs) {
+        const hasActivePadInput = activePadPointer.current !== null;
+        const queuedDirectionForStep =
+          queuedDirection.current &&
+          (hasActivePadInput || timestamp - queuedDirectionAt.current <= TUNING.turnBufferMs)
+            ? queuedDirection.current
+            : null;
+
+        if (!queuedDirectionForStep) {
+          queuedDirection.current = null;
+          queuedDirectionAt.current = 0;
+        }
+
         const plannedDirection = pickPlannedDirection(
           playerRef.current,
           plannedPathRef.current,
           maze,
           hasKeyRef.current,
         );
-        const usingPlannedPath = queuedDirection.current === null && plannedDirection !== null;
+        const usingPlannedPath = queuedDirectionForStep === null && plannedDirection !== null;
         const direction = pickPlayerDirection(
           playerRef.current,
-          queuedDirection.current,
+          queuedDirectionForStep,
           plannedDirection,
           currentDirection.current,
           maze,
@@ -265,11 +388,24 @@ export default function App() {
         );
 
         if (direction) {
+          const previousPlayer = playerRef.current;
           const nextPlayer = movePlayerPoint(playerRef.current, direction, maze, hasKeyRef.current);
           playerRef.current = nextPlayer;
           currentDirection.current = direction;
           setPlayer(nextPlayer);
           lastPlayerStep.current = timestamp;
+          lateTurnWindow.current = createLateTurnWindow(
+            previousPlayer,
+            direction,
+            timestamp,
+            maze,
+            hasKeyRef.current,
+          );
+
+          if (direction === queuedDirectionForStep) {
+            queuedDirection.current = null;
+            queuedDirectionAt.current = 0;
+          }
 
           if (usingPlannedPath) {
             const [, ...remainingPath] = plannedPathRef.current;
@@ -303,6 +439,7 @@ export default function App() {
 
         if (!direction) {
           currentDirection.current = null;
+          lateTurnWindow.current = null;
 
           if (plannedPathRef.current.length > 0) {
             plannedPathRef.current = [];
@@ -500,12 +637,20 @@ export default function App() {
           </div>
         </div>
 
-        <div className="touch-pad" aria-label="Movement controls">
+        <div
+          className="touch-pad"
+          aria-label="Movement controls"
+          onPointerDown={handlePadPointerDown}
+          onPointerMove={handlePadPointerMove}
+          onPointerCancel={handlePadPointerEnd}
+          onPointerUp={handlePadPointerEnd}
+        >
           <button
             type="button"
             className="pad-up"
             aria-label="Move up"
             onPointerDown={queueDirectionFromPress("up")}
+            onClick={() => queueDirection("up")}
           >
             <ArrowIcon direction="up" />
           </button>
@@ -514,6 +659,7 @@ export default function App() {
             className="pad-left"
             aria-label="Move left"
             onPointerDown={queueDirectionFromPress("left")}
+            onClick={() => queueDirection("left")}
           >
             <ArrowIcon direction="left" />
           </button>
@@ -522,6 +668,7 @@ export default function App() {
             className="pad-right"
             aria-label="Move right"
             onPointerDown={queueDirectionFromPress("right")}
+            onClick={() => queueDirection("right")}
           >
             <ArrowIcon direction="right" />
           </button>
@@ -530,6 +677,7 @@ export default function App() {
             className="pad-down"
             aria-label="Move down"
             onPointerDown={queueDirectionFromPress("down")}
+            onClick={() => queueDirection("down")}
           >
             <ArrowIcon direction="down" />
           </button>
@@ -581,6 +729,46 @@ function pickPlayerDirection(
 
 function canMove(player: Point, direction: Direction, maze: Maze, hasKey: boolean): boolean {
   return !pointsEqual(player, movePlayerPoint(player, direction, maze, hasKey));
+}
+
+function createLateTurnWindow(
+  corner: Point,
+  forward: Direction,
+  departedAt: number,
+  maze: Maze,
+  hasKey: boolean,
+): LateTurnWindow | null {
+  const turns = perpendicularDirections(forward).filter((direction) =>
+    canMove(corner, direction, maze, hasKey),
+  );
+
+  return turns.length > 0 ? { corner, forward, departedAt, turns } : null;
+}
+
+function pickLateTurnTarget(
+  player: Point,
+  queued: Direction | null,
+  window: LateTurnWindow | null,
+  timestamp: number,
+  maze: Maze,
+  hasKey: boolean,
+): Point | null {
+  if (!queued || !window || timestamp - window.departedAt > TUNING.turnCoyoteMs) {
+    return null;
+  }
+
+  const forwardCell = neighborForDirection(window.corner, window.forward);
+
+  if (!pointsEqual(player, forwardCell) || !window.turns.includes(queued)) {
+    return null;
+  }
+
+  const target = movePlayerPoint(window.corner, queued, maze, hasKey);
+  return pointsEqual(target, window.corner) ? null : target;
+}
+
+function perpendicularDirections(direction: Direction): Direction[] {
+  return direction === "up" || direction === "down" ? ["left", "right"] : ["up", "down"];
 }
 
 function pickPlannedDirection(
