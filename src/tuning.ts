@@ -9,15 +9,15 @@ const HUNTER_MAX_SPRINT_STEP_MS = 95;
 const HUNTER_STRAIGHT_ACCEL_START_STEPS = 4;
 const HUNTER_STRAIGHT_ACCEL_STEP_MS = 10;
 const HUNTER_DIAGNOSTIC_STEP_MS = 180;
-const TURN_BUFFER_MS = 900;
-const TURN_COYOTE_MS = 110;
+const PLAYER_CORNERING_WINDOW_TILES = 0.42;
+const PLAYER_CENTERING_STEP_TILES = 0.08;
 
 export const TUNING = {
   headStartSeconds: HEAD_START_SECONDS,
   roomTransitionMs: 280,
   playerStepMs: PLAYER_STEP_MS,
-  turnBufferMs: TURN_BUFFER_MS,
-  turnCoyoteMs: TURN_COYOTE_MS,
+  playerCorneringWindowTiles: PLAYER_CORNERING_WINDOW_TILES,
+  playerCenteringStepTiles: PLAYER_CENTERING_STEP_TILES,
   hunterTrackStepMs: HUNTER_TRACK_STEP_MS,
   hunterSprintStepMs: HUNTER_SPRINT_STEP_MS,
   hunterTurnStepMs: HUNTER_TURN_STEP_MS,
